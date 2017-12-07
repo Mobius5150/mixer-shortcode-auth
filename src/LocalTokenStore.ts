@@ -9,8 +9,8 @@ export class LocalTokenStore implements ITokenStore {
         this.storeFile = storeFileName;
     }
 
-    public async getStoredToken(): Promise<IAccessToken> {
-        return new Promise<IAccessToken>((resolve, reject) => {
+    public async getStoredToken(): Promise<IAccessToken | null> {
+        return new Promise<IAccessToken | null>((resolve, reject) => {
             fs.exists(this.storeFile, (exists) => {
                 if (!exists) {
                     resolve(null);

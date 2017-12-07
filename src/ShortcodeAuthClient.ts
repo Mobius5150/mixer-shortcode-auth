@@ -1,16 +1,17 @@
 import * as https from 'https';
+import * as http from 'http';
 import {EventEmitter} from 'events';
 import {IAccessToken} from './IAccessToken';
 import {ITokenStore} from './ITokenStore';
 
 export interface IShortcodeAuth extends EventEmitter {
+    on(event: string, listener: () => void): this;
     on(event: 'authorized', listener: (token: IAccessToken) => void): this;
     on(event: 'declined', listener: () => void): this;
     on(event: 'completed', listener: () => void): this;
     on(event: 'expired', listener: () => void): this;
     on(event: 'code', listener: (code: string) => void): this;
     on(event: 'error', listener: (error: Error) => void): this;
-    on(event: string, listener: () => void): this;
 }
 
 export interface IOauthClientInfo {
@@ -19,9 +20,23 @@ export interface IOauthClientInfo {
     scopes: string[];
 }
 
+export interface IMixerOAuthClientInfo {
+    client_id: string;
+    client_secret?: string;
+    scope: string;
+}
+
+export interface IMixerOAuthTokenGrant {
+    grant_type: string;
+    client_id: string;
+    refresh_token?: string;
+    client_secret?: string;
+    code?: string;
+};
+
 export class ShortcodeAuthClient extends EventEmitter implements IShortcodeAuth {
     public static CheckInterval: number = 1000;
-    public static MixerUrl: string = 'beam.pro';
+    public static MixerUrl: string = 'mixer.com';
     public static BaseApi: string = '/api/v1';
     public static ShortcodeEndpoint: string = ShortcodeAuthClient.BaseApi + '/oauth/shortcode';
     public static TokenEndpoint: string = ShortcodeAuthClient.BaseApi + '/oauth/token';
@@ -29,21 +44,21 @@ export class ShortcodeAuthClient extends EventEmitter implements IShortcodeAuth 
     public static ShortcodeCheckEndpoint: string = ShortcodeAuthClient.BaseApi + '/oauth/shortcode/check/{handle}';
 
     public ClientId: string;
-    public ClientSecret: string;
+    public ClientSecret: string | null;
     public Scopes: string[];
 
-    public ShortCode: string = null;
-    private ShortCodeHandle: string = null;
-    private ShortCodeHandleExpiresTime: Date = null;
-    private ShortCodeCheckInterval: NodeJS.Timer = null;
+    public ShortCode: string | null = null;
+    private ShortCodeHandle: string | null = null;
+    private ShortCodeHandleExpiresTime: Date | null = null;
+    private ShortCodeCheckInterval: NodeJS.Timer | null = null;
 
     private inRequest: boolean = false;
-    private request: https.ClientRequest;
+    private request: http.ClientRequest;
 
-    private rawResponse: https.IncomingMessage;
+    private rawResponse: http.IncomingMessage;
     private responseStr: string = '';
 
-    private tokenStore: ITokenStore;
+    private tokenStore: ITokenStore | null;
 
     constructor(clientInfo: IOauthClientInfo, tokenStore?: ITokenStore) {
         super();
@@ -53,7 +68,7 @@ export class ShortcodeAuthClient extends EventEmitter implements IShortcodeAuth 
             (typeof clientInfo.client_secret !== 'undefined') ? 
                 clientInfo.client_secret : null;
         this.Scopes = clientInfo.scopes;
-        this.tokenStore = tokenStore;
+        this.tokenStore = tokenStore || null;
     }
 
     public doAuth() {
@@ -82,7 +97,6 @@ export class ShortcodeAuthClient extends EventEmitter implements IShortcodeAuth 
             try {
                 const token = await this.tokenStore.getStoredToken();
                 if (null === token || typeof token.access_token !== 'string' || typeof token.refresh_token !== 'string') {
-                    console.error('Token was null or not an access token', token);
                     this.startShortcodeAuth();
                     return;
                 }
@@ -95,7 +109,6 @@ export class ShortcodeAuthClient extends EventEmitter implements IShortcodeAuth 
                     await this.authorized(newToken);
                 }
             } catch (e) {
-                console.error('Error loading from token store: ', e);
                 this.startShortcodeAuth();
             }
         } else {
@@ -147,7 +160,7 @@ export class ShortcodeAuthClient extends EventEmitter implements IShortcodeAuth 
             port: 443
         }, response => this.handleShortcodeResponse(response));
 
-        const data = {
+        const data: IMixerOAuthClientInfo = {
             client_id: this.ClientId,
             scope: this.Scopes.join(' ')
         };
@@ -163,7 +176,7 @@ export class ShortcodeAuthClient extends EventEmitter implements IShortcodeAuth 
         this.request.end();
     }
 
-    private handleShortcodeResponse(response: https.IncomingMessage) {
+    private handleShortcodeResponse(response: http.IncomingMessage) {
         this.rawResponse = response;
         response.on('data', d => this.handleShortcodeResponseData(d));
         response.on('end', () => this.handleShortcodeResponseDone());
@@ -182,7 +195,8 @@ export class ShortcodeAuthClient extends EventEmitter implements IShortcodeAuth 
     private handleShortcodeResponseDone() {
         try {
             if (this.rawResponse.statusCode !== 200) {
-                throw `Received ${this.rawResponse.statusCode} from Mixer`;
+                console.error(this.responseStr);
+                throw new Error(`Received ${this.rawResponse.statusCode} from Mixer`);
             }
 
             const response = JSON.parse(this.responseStr);
@@ -211,7 +225,7 @@ export class ShortcodeAuthClient extends EventEmitter implements IShortcodeAuth 
     }
 
     private startCheckInterval() {
-        this.ShortCodeCheckInterval = setTimeout(() => this.checkShortcode(), ShortcodeAuthClient.CheckInterval);
+        this.ShortCodeCheckInterval = setTimeout(() => this.checkShortcode(), ShortcodeAuthClient.CheckInterval) as any as NodeJS.Timer;
     }
 
     private checkShortcode() {
@@ -219,7 +233,7 @@ export class ShortcodeAuthClient extends EventEmitter implements IShortcodeAuth 
 
         https.get({
             hostname: ShortcodeAuthClient.MixerUrl,
-            path: ShortcodeAuthClient.ShortcodeCheckEndpoint.replace('{handle}', this.ShortCodeHandle),
+            path: ShortcodeAuthClient.ShortcodeCheckEndpoint.replace('{handle}', this.ShortCodeHandle as string),
         }, (response) => {
             let data = '';
             response.on('data', chunk => {
@@ -273,23 +287,23 @@ export class ShortcodeAuthClient extends EventEmitter implements IShortcodeAuth 
          }
     }
 
-    private async getOAuthToken(code: string, token?: IAccessToken): Promise<IAccessToken> {
+    private async getOAuthToken(code: string | null, token?: IAccessToken): Promise<IAccessToken> {
         return new Promise<IAccessToken>((resolve, reject) => {
-            var dataObj = null;
+            var dataObj: IMixerOAuthTokenGrant;
             if (code !== null) {
                 dataObj = {
                     grant_type: 'authorization_code',
                     client_id: this.ClientId,
                     code: code
                 };
-            } else if (token !== null) {
+            } else if (token !== undefined && token !== null) {
                 dataObj = {
                     grant_type: 'refresh_token',
                     refresh_token: `${token.refresh_token}`,
                     client_id: this.ClientId
                 };
             } else {
-                reject("Need either an access code or a refresh token to retrieve a token");
+                return reject("Need either an access code or a refresh token to retrieve a token");
             }
 
             if (null !== this.ClientSecret) {
