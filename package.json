@@ -1,8 +1,9 @@
 {
-  "name": "mixer-shortcode-auth",
-  "version": "1.0.0",
+  "name": "mixer-shortcode-oauth",
+  "version": "1.0.3",
   "description": "",
-  "main": "index.js",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
   "scripts": {
     "build": "tsc",
     "build:test": "tsc -p ./tsconfig.test.json",
@@ -11,11 +12,8 @@
   "author": "Mike Blouin <mb@xbox.com>",
   "license": "Apache-2.0",
   "devDependencies": {
-    "@types/jasmine": "^2.5.53",
     "@types/nock": "^8.2.1",
     "@types/node": "^8.0.24",
-    "jasmine": "^2.7.0",
-    "jasmine-core": "^2.7.0",
     "nock": "^9.0.14"
   },
   "dependencies": {
