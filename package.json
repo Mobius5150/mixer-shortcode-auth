@@ -1,22 +1,25 @@
 {
-  "name": "mixer-shortcode-oauth",
-  "version": "1.0.3",
-  "description": "",
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
-  "scripts": {
-    "build": "tsc",
-    "build:test": "tsc -p ./tsconfig.test.json",
-    "test": "npm run build:test && jasmine"
-  },
-  "author": "Mike Blouin <mb@xbox.com>",
-  "license": "Apache-2.0",
-  "devDependencies": {
-    "@types/nock": "^8.2.1",
-    "@types/node": "^8.0.24",
-    "nock": "^9.0.14"
-  },
-  "dependencies": {
-    "typescript": "^2.6.2"
-  }
+    "name": "mixer-shortcode-oauth",
+    "version": "1.0.3",
+    "description": "",
+    "main": "lib/index.js",
+    "typings": "lib/index.d.ts",
+    "scripts": {
+        "build": "tsc",
+        "build:test": "tsc -p ./tsconfig.test.json",
+        "test": "npm run build:test && jasmine"
+    },
+    "homepage": "https://github.com/Mobius5150/mixer-shortcode-auth",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Mobius5150/mixer-shortcode-auth.git"
+    },
+    "author": "Mike Blouin <mb@xbox.com>",
+    "license": "Apache-2.0",
+    "devDependencies": {
+        "@types/nock": "^8.2.1",
+        "@types/node": "^8.0.24",
+        "nock": "^9.0.14",
+        "typescript": "^2.6.2"
+    }
 }
