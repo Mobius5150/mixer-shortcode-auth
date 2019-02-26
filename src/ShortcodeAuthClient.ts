@@ -35,6 +35,7 @@ export interface IMixerOAuthTokenGrant {
 };
 
 export class ShortcodeAuthClient extends EventEmitter implements IShortcodeAuth {
+    public static TokenPreInvalidatePeriod = 1000 * 60 * 30; // 30 minutes
     public static CheckInterval: number = 1000;
     public static MixerUrl: string = 'mixer.com';
     public static BaseApi: string = '/api/v1';
@@ -95,25 +96,41 @@ export class ShortcodeAuthClient extends EventEmitter implements IShortcodeAuth 
         this.inRequest = true;
         if (this.tokenStore) {
             try {
-                const token = await this.tokenStore.getStoredToken();
+                const token = this.validateToken(await this.tokenStore.getStoredToken());
                 if (null === token || typeof token.access_token !== 'string' || typeof token.refresh_token !== 'string') {
                     this.startShortcodeAuth();
                     return;
                 }
 
-                const tokenValid = await this.tryToken(token);
+                const tokenValid = !this.tokenExpired(token) && await this.tryToken(token);
                 if (tokenValid) {
+                    console.log('Token valid');
                     await this.authorized(token);
                 } else {
+                    console.log('Token invalid');
                     const newToken = await this.getOAuthToken(null, token);
                     await this.authorized(newToken);
                 }
             } catch (e) {
+                console.log('Validation error', e);
                 this.startShortcodeAuth();
             }
         } else {
+            console.log('No store');
             this.startShortcodeAuth();
         }
+    }
+
+    private validateToken(token: IAccessToken): IAccessToken {
+        if (typeof token.expires_at === 'string') {
+            token.expires_at = new Date(token.expires_at);
+        }
+
+        return token;
+    }
+
+    private tokenExpired(token: IAccessToken): boolean {
+        return token.expires_at.getTime() < (Date.now() - ShortcodeAuthClient.TokenPreInvalidatePeriod);
     }
 
     private async tryToken(token: IAccessToken) {
