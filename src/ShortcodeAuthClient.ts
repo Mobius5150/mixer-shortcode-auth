@@ -104,19 +104,15 @@ export class ShortcodeAuthClient extends EventEmitter implements IShortcodeAuth 
 
                 const tokenValid = !this.tokenExpired(token) && await this.tryToken(token);
                 if (tokenValid) {
-                    console.log('Token valid');
                     await this.authorized(token);
                 } else {
-                    console.log('Token invalid');
                     const newToken = await this.getOAuthToken(null, token);
                     await this.authorized(newToken);
                 }
             } catch (e) {
-                console.log('Validation error', e);
                 this.startShortcodeAuth();
             }
         } else {
-            console.log('No store');
             this.startShortcodeAuth();
         }
     }
